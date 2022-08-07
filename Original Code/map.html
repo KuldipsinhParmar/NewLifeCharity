@@ -1,0 +1,183 @@
+<div id="map_loader"></div>
+                                    <div id="map_canvas" style="height:800px; width:100%;">
+									</div>
+
+<!-- Specific Page Scripts Put Here -->
+            <!-- Google Map -->
+            <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+            <script type="text/javascript">
+                $(document).ready(function() { 
+                                             
+                $('#countyList').on('change', function (e) {
+                     location.href = "county.php?id=" + this.value;
+                });
+                
+                    "use strict";
+                
+                    
+                    $('#filters a').click(function(){
+                        var filter = $(this).data('filter');
+                        var lat= 0;
+                        var long = 0;
+                        switch(filter)
+                        {
+                        case "US":
+                          lat = 40;
+                          long = -100;
+                          break;
+                        case "CN":
+                          lat = 35;
+                          long = 103;
+                          break;
+                        case "ID":
+                          lat = 0;
+                          long = 117;
+                          break;
+                        case "FR":
+                          lat = 47;
+                          long = 2;		  
+                          break;
+                        }
+                        
+                    
+                    });	
+                });
+             </script>
+             <!-- Google Maps Api lib -->
+             <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?key=AIzaSyD8rnTSp06RvQJ8sEWsTFDKbeQNZWPRHz8"></script>
+             <!-- <script type="text/javascript" src="https://maps.googleapis.com/maps/api/js?v=3.exp"></script> -->
+             <!-- Specific Page Scripts Put Here -->
+             <script type="text/javascript">
+                function numberWithCommas(x) {
+                    return x.toString().replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+                }
+                
+                var cid;
+                var infowindow;
+                
+                function initialize() {
+                
+                    var mapOptions = {
+                        zoom: 6,
+                        styles: [{"featureType":"water","stylers":[{"color":"#46bcec"},{"visibility":"on"}]},{"featureType":"landscape","stylers":[{"color":"#f2f2f2"}]},{"featureType":"road","stylers":[{"saturation":-100},{"lightness":45}]},{"featureType":"road.highway","stylers":[{"visibility":"simplified"}]},{"featureType":"road.arterial","elementType":"labels.icon","stylers":[{"visibility":"off"}]},{"featureType":"administrative","elementType":"labels.text.fill","stylers":[{"color":"#444444"}]},{"featureType":"transit","stylers":[{"visibility":"off"}]},{"featureType":"poi","stylers":[{"visibility":"off"}]}],
+                        overviewMapControl: false,
+                        streetViewControl: false,
+                        center: new google.maps.LatLng(54.64,-5.32),                      
+                        minZoom: 5
+                    }
+                
+                    var map = new google.maps.Map(document.getElementById('map_canvas'), mapOptions);
+                
+                 var strictBounds = new google.maps.LatLngBounds(
+                      new google.maps.LatLng(50, -7.6), 
+                      new google.maps.LatLng(60.8, 0.6)
+                    );
+                    
+                    
+   google.maps.event.addListener(map, 'dragend', function() {
+      if (strictBounds.contains(map.getCenter())) return;
+ 
+ 
+      var c = map.getCenter(),
+          x = c.lng(),
+          y = c.lat(),
+          maxX = strictBounds.getNorthEast().lng(),
+          maxY = strictBounds.getNorthEast().lat(),
+          minX = strictBounds.getSouthWest().lng(),
+          minY = strictBounds.getSouthWest().lat();
+ 
+      if (x < minX) x = minX;
+      if (x > maxX) x = maxX;
+      if (y < minY) y = minY;
+      if (y > maxY) y = maxY;
+ 
+      map.setCenter(new google.maps.LatLng(y, x));
+    });				   
+                    
+                
+                    var infowindow;
+                
+                    map.data.loadGeoJson('regions.geojson');
+                    
+                    map.data.addListener('addfeature', function(event) {
+                         $("#map_loader").hide();
+                     });
+                    
+                
+                    function showInContentWindow(position, text) {
+                
+                        $.ajax({
+                            type: "POST",
+                            url: "getdata.php",
+                            data: { id: text}
+                        })
+                                .done(function( data ) {
+                
+                                    var data = jQuery.parseJSON(data);
+                
+                                    var content = "<div style='width: 300px'><h3 class='countyhead_pop'>" + data.cname +  "</h3>";
+                                    content += "<h4 class='currentneed_pop'>Cost of equipment needed: " + numberWithCommas("<span class='currentneed_amt'>£" + data.amountNeeded) + "</span></h4>";
+                                    content += "<h4 class='children_pop'>Number of children in urgent need: <span class='childpop_num'>" + numberWithCommas(data.numberOfChildrenNeededHelp) + "</span></h4>";
+                                    // TDA Changed Aug 2021 - Original Below
+                                    // content += '<a class="btn vd_btn detailedinfo" href="county.php?id=' + text + '">Detailed Information</a></div>';
+                                    // TDA Changed Aug 2021 - Changed Below
+                                    content += '</div>';
+                
+                                    if(infowindow){
+                                        infowindow.close();
+                                    }
+                
+                                    infowindow = new google.maps.InfoWindow({
+                                        content: content,
+                                        position: position,
+                                        pixelOffset: new google.maps.Size(0, 0),
+                                    })
+                
+                                    infowindow.open(map);
+                
+                                });
+                    }
+                
+                    map.data.setStyle(function(feature) {
+                        var color = 'gray';
+                        if (cid == feature.getProperty('Name')) {
+                            map.data.overrideStyle(feature, {fillColor: 'red'});
+                        }
+                
+                        return /** @type {google.maps.Data.StyleOptions} */({
+                            fillColor: color,
+                            strokeColor: color,
+                            strokeWeight: 1
+                        });
+                    });
+                
+                    map.data.addListener('click', function(event) {
+                        map.data.revertStyle();
+                        map.data.overrideStyle(event.feature, {fillColor: 'red'});
+                        event.feature.setProperty('isColorful', true);
+                        cid = event.feature.getProperty('Name');
+                        showInContentWindow(event.latLng, event.feature.getProperty('Name'));
+                
+                    });
+                
+                    map.data.addListener('mouseover', function(event) {
+                        if(event.feature.getProperty('color') != 'red'){
+                            map.data.overrideStyle(event.feature, {fillColor: 'black'});
+                        }
+                    });
+                
+                    map.data.addListener('mouseout', function(event) {
+                
+                        if(event.feature.getProperty('color') != 'red'){
+                            map.data.overrideStyle(event.feature, {fillColor: 'grey'});
+                        }
+                
+                    });
+                
+                }
+                
+                google.maps.event.addDomListener(window, 'load', initialize);
+                
+                
+                
+             </script>
